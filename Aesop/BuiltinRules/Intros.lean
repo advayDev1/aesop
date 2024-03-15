@@ -39,6 +39,12 @@ def intros : RuleTac := RuleTac.ofSingleRuleTac λ input => do
         input.goal.intros
     if newFVars.size == 0 then
       throwError "nothing to introduce"
+    trace[debug] "added fvars: {newFVars.map (·.name)}"
+    let diff := {
+      addedFVars := .ofArray newFVars
+      removedFVars := ∅
+      fvarSubst := ∅
+    }
     let scriptBuilder? ←
       if input.options.generateScript then
         goal.withContext do
@@ -50,9 +56,8 @@ def intros : RuleTac := RuleTac.ofSingleRuleTac λ input => do
             else
               pure tac
           pure $ some $ .ofTactic 1 tac
-
       else
         pure none
-    return (#[goal], scriptBuilder?, none)
+    return (#[{ mvarId := goal, diff }], scriptBuilder?, none)
 
 end Aesop.BuiltinRules

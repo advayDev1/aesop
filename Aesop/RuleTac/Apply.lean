@@ -23,6 +23,7 @@ def applyExpr' (goal : MVarId) (e : Expr) (eStx : Term)
       else
         pure e
     let goals := (← withTransparency md $ goal.apply e).toArray
+    let goals := goals.map λ mvarId => { mvarId, diff := ∅ }
     let postState ← saveState
     let scriptBuilder? :=
       mkScriptBuilder? generateScript $

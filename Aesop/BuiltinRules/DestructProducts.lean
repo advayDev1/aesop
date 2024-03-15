@@ -50,8 +50,7 @@ private def destructProductHyp (goal : MVarId) (hyp : FVarId)
       goal.withContext $ check prf
       let [goal] ← goal.apply prf
         | throwError "destructProducts: apply did not return exactly one goal"
-      let (_, goal) ← goal.introN (genHyps.size - 1)
-      let (_, goal) ← goal.introN 2
+      let (_, goal) ← goal.introN $ genHyps.size - 1 + 2
       goal.clear hyp
 
 partial def destructProductsCore (goal : MVarId) (md : TransparencyMode) :
@@ -100,6 +99,9 @@ elab "aesop_destruct_products" : tactic =>
 partial def destructProducts : RuleTac := RuleTac.ofSingleRuleTac λ input => do
   let md := input.options.destructProductsTransparency
   let goal ← unhygienic $ destructProductsCore input.goal md
+  -- TODO we can construct a better diff here, and it would be important to do
+  -- so because `destructProducts` often renames hypotheses.
+  let goal := { mvarId := goal, diff := ← diffGoals input.goal goal ∅ }
   let scriptBuilder? :=
     mkScriptBuilder? input.options.generateScript $ .ofTactic 1 do
       let tac ← withTransparencySyntax md (← `(tactic| aesop_destruct_products))

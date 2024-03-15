@@ -59,6 +59,14 @@ partial def substFVars (goal : MVarId) (fvarIds : Array FVarId) :
       substitutedHypNames := substitutedHypNames.push hypName
   return (goal, substitutedHypNames, fvarSubst)
 
+-- TODO We only introduce aesop_subst to support Iff hypotheses. The utility of
+-- this is dubious in the first place, but if we want it, we should simply
+-- adjust the script generation: to substitute `h : A ↔ B`, we can generate the
+-- script
+--
+--   have h' := propext h
+--   subst h'
+
 open Lean.Elab.Tactic in
 def elabAesopSubst (hyps : Array Syntax.Ident) : TacticM Unit := do
   liftMetaTactic λ goal => do
@@ -84,6 +92,9 @@ def subst : RuleTac := RuleTac.ofSingleRuleTac λ input =>
       | .hyp ldecl => pure ldecl.fvarId
       | _ => throwError "unexpected index match location"
     let (goal, substitutedUserNames, _) ← substFVars input.goal hyps
+    -- TODO we can construct a better diff here, and doing so would be important
+    -- since `subst` often renames fvars.
+    let goal ← mvarIdToSubgoal input.goal goal ∅
     if substitutedUserNames.size == 0 then
       throwError "no suitable hypothesis found"
     let scriptBuilder? :=

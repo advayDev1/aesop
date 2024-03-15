@@ -15,8 +15,9 @@ This `RuleTac` is applied once to the root goal, before any other rules are
 tried.
 -/
 def preprocess : RuleTac := RuleTac.ofSingleRuleTac λ input => do
-  let (postMVarId, _, scriptBuilder?) ←
+  let (mvarId, _, scriptBuilder?) ←
     renameInaccessibleFVarsWithScript input.goal input.options.generateScript
-  return (#[postMVarId], scriptBuilder?, none)
+  let goal := { mvarId, diff := ∅ }
+  return (#[goal], scriptBuilder?, none)
 
 end Aesop.RuleTac

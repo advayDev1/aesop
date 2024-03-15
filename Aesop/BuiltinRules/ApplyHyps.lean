@@ -16,6 +16,7 @@ def applyHyp (hyp : FVarId) (goal : MVarId) (md : TransparencyMode)
   goal.withContext do
     let goals := (← withTransparency md $ goal.apply (mkFVar hyp)).toArray
     let postState ← saveState
+    let goals := goals.map λ mvarId => { mvarId, diff := ∅ }
     let scriptBuilder? := mkScriptBuilder? generateScript $
       .ofTactic goals.size $ withTransparencySyntax md $
         ← `(tactic| apply $(mkIdent $ ← hyp.getUserName))

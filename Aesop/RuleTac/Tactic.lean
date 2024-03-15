@@ -17,6 +17,7 @@ unsafe def tacticMImpl (decl : Name) : RuleTac :=
   SingleRuleTac.toRuleTac λ input => do
     let tac ← evalConst (TacticM Unit) decl
     let goals ← run input.goal tac |>.run'
+    let goals ← goals.mapM (mvarIdToSubgoal (parentMVarId := input.goal) · ∅)
     return (goals.toArray, none, none)
 
 -- Precondition: `decl` has type `TacticM Unit`.
@@ -50,6 +51,7 @@ in any syntax category supported by `evalTactic`, particularly `tactic` and
 def tacticStx (stx : Syntax) : RuleTac :=
   SingleRuleTac.toRuleTac λ input => do
     let goals := (← run input.goal (evalTactic stx) |>.run').toArray
+    let goals ← goals.mapM (mvarIdToSubgoal (parentMVarId := input.goal) · ∅)
     let scriptBuilder? : Option RuleTacScriptBuilder :=
       if stx.isOfKind `tactic then
         some $ .ofTactic goals.size (pure ⟨stx⟩)
@@ -77,6 +79,7 @@ unsafe def tacGenImpl (decl : Name) : RuleTac := λ input => do
         Parser.runParserCategory env `tactic tacticStr (fileName := "<stdin>")
         | throwError "failed to parse tactic syntax{indentD tacticStr}"
       let goals := (← run input.goal (evalTactic stx) |>.run').toArray
+      let goals ← goals.mapM (mvarIdToSubgoal (parentMVarId := input.goal) · ∅)
       let postState ← saveState
       if let some proof ← getExprMVarAssignment? input.goal then
         if (← instantiateMVars proof).hasSorry then

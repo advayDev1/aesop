@@ -34,7 +34,7 @@ namespace RuleTac
 
 partial def cases (target : CasesTarget) (md : TransparencyMode) (isRecursiveType : Bool) : RuleTac :=
   SingleRuleTac.toRuleTac λ input => do
-    match ← go #[] #[] input.goal input.options.generateScript with
+    match ← go #[] #[] ∅ input.goal input.options.generateScript with
     | none => throwError "No matching hypothesis found."
     | some (goals, scriptBuilder?) => return (goals, scriptBuilder?, none)
   where
@@ -56,9 +56,9 @@ partial def cases (target : CasesTarget) (md : TransparencyMode) (isRecursiveTyp
           else
             return none
 
-    go (newGoals : Array MVarId) (excluded : Array FVarId)
+    go (newGoals : Array Subgoal) (excluded : Array FVarId) (diff : GoalDiff)
         (goal : MVarId) (generateScript : Bool) :
-        MetaM (Option (Array MVarId × Option RuleTacScriptBuilder)) := do
+        MetaM (Option (Array Subgoal × Option RuleTacScriptBuilder)) := do
       let (some hyp) ← findFirstApplicableHyp excluded goal
         | return none
       let (goals, scriptBuilder?) ←
@@ -69,25 +69,20 @@ partial def cases (target : CasesTarget) (md : TransparencyMode) (isRecursiveTyp
       let mut newGoals := newGoals
       let mut newScriptBuilders := #[]
       for g in goals do
-        let excluded :=
-          if ! isRecursiveType then
-            excluded
-          else
-            let excluded := excluded.map λ fvarId =>
-              match g.subst.find? fvarId with
-              | some (.fvar fvarId' ..) => fvarId'
-              | _ => fvarId
-            let fields := g.fields.filterMap λ
-              | (.fvar fvarId' ..) => some fvarId'
-              | _ => none
-            excluded ++ fields
-        match ← go newGoals excluded g.mvarId generateScript with
+        let newDiff ← diffGoals goal g.mvarId
+          (.ofFVarSubstIgnoringNonFVarIds g.subst)
+        let mut excluded := excluded
+        if isRecursiveType then
+          excluded :=
+            excluded.map diff.fvarSubst.get ++ newDiff.addedFVars.toArray
+        let diff := diff.comp newDiff
+        match ← go newGoals excluded diff g.mvarId generateScript with
         | some (newGoals', newScriptBuilder?) =>
           newGoals := newGoals'
           if let some newScriptBuilder := newScriptBuilder? then
             newScriptBuilders := newScriptBuilders.push newScriptBuilder
         | none =>
-          newGoals := newGoals.push g.mvarId
+          newGoals := newGoals.push { mvarId := g.mvarId, diff }
           if generateScript then
             newScriptBuilders := newScriptBuilders.push .id
       return some (newGoals, scriptBuilder?.bind (·.seq newScriptBuilders))

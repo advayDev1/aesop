@@ -111,7 +111,7 @@ def getForwardHypTypes : MetaM (HashSet Expr) := do
 def applyForwardRule (goal : MVarId) (e : Expr) (pat? : Option RulePattern)
     (patInsts : HashSet RulePatternInstantiation)
     (immediate : UnorderedArraySet Nat) (clear : Bool) (generateScript : Bool)
-    (md : TransparencyMode) : MetaM (MVarId × Option RuleTacScriptBuilder) :=
+    (md : TransparencyMode) : MetaM (Subgoal × Option RuleTacScriptBuilder) :=
   withTransparency md $ goal.withContext do
     let mut newHypProofs := #[]
     let mut usedHyps := ∅
@@ -144,8 +144,13 @@ def applyForwardRule (goal : MVarId) (e : Expr) (pat? : Option RulePattern)
     let newHypUserNames ← getUnusedUserNames newHyps'.size forwardHypPrefix
     let newHyps := newHyps'.zipWith newHypUserNames λ (proof, type) userName =>
       { value := proof, type, userName }
-    let (_, goal, assertScriptBuilder?) ←
+    let (addedFVars, goal, assertScriptBuilder?) ←
       assertHypothesesWithScript goal newHyps generateScript
+    let diff := {
+      addedFVars := .ofArray addedFVars
+      removedFVars := ∅
+      fvarSubst := ∅
+    }
     let assertScriptBuilder? :=
       assertScriptBuilder?.map (·.withAllTransparency md)
     let implDetailHyps ← newHyps.mapM λ hyp =>
@@ -157,13 +162,14 @@ def applyForwardRule (goal : MVarId) (e : Expr) (pat? : Option RulePattern)
       }
     let (_, goal) ← goal.assertHypotheses' implDetailHyps
     if clear then
-      let (goal, _, clearScriptBuilder?) ←
+      let (goal, removedFVars, clearScriptBuilder?) ←
         tryClearManyWithScript goal usedHyps generateScript
+      let diff := { diff with removedFVars := .ofArray removedFVars }
       let scriptBuilder? :=
         return (← assertScriptBuilder?).seq #[(← clearScriptBuilder?)]
-      return (goal, scriptBuilder?)
+      return ({ mvarId := goal, diff }, scriptBuilder?)
     else
-      return (goal, assertScriptBuilder?)
+      return ({ mvarId := goal, diff }, assertScriptBuilder?)
   where
     err {α} : MetaM α := throwError
       "found no instances of {e} (other than possibly those which had been previously added by forward rules)"

@@ -105,7 +105,7 @@ def runNormRuleTac (rule : NormRule) (input : RuleTacInput) :
         mkNormRuleTacticInvocation rule.name rapp.scriptBuilder? input.goal none
           preMetaState rapp.postState
       return .proved step?
-    let (#[g]) := rapp.goals
+    let (#[{ mvarId := g, .. }]) := rapp.goals
       | err m!"rule produced more than one subgoal."
     let mvars := .ofArray input.mvars.toArray
     if ← Check.rules.isEnabled then
